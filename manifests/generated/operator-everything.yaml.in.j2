@@ -1,0 +1,140 @@
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  labels:
+    tier: node
+    wasp.io: ""
+  name: wasp-cluster
+rules:
+- apiGroups:
+  - ""
+  resources:
+  - pods
+  - nodes
+  verbs:
+  - delete
+  - watch
+  - list
+  - update
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  labels:
+    tier: node
+    wasp.io: ""
+  name: wasp
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: wasp-cluster
+subjects:
+- kind: ServiceAccount
+  name: wasp
+  namespace: {{ wasp_namespace }}
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  labels:
+    tier: node
+    wasp.io: ""
+  name: wasp
+  namespace: {{ wasp_namespace }}
+---
+allowHostDirVolumePlugin: true
+allowHostIPC: true
+allowHostNetwork: true
+allowHostPID: true
+allowHostPorts: true
+allowPrivilegeEscalation: true
+allowPrivilegedContainer: true
+allowedCapabilities:
+- '*'
+allowedUnsafeSysctls:
+- '*'
+apiVersion: security.openshift.io/v1
+defaultAddCapabilities: null
+fsGroup: {}
+groups: null
+kind: SecurityContextConstraints
+metadata:
+  labels:
+    wasp.io: ""
+  name: wasp
+  namespace: {{ wasp_namespace }}
+priority: null
+readOnlyRootFilesystem: false
+requiredDropCapabilities: null
+runAsUser:
+  type: RunAsAny
+seLinuxContext:
+  type: RunAsAny
+seccompProfiles:
+- '*'
+supplementalGroups:
+  type: RunAsAny
+users:
+- system:serviceaccount:{{ wasp_namespace }}:wasp
+volumes:
+- '*'
+---
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  labels:
+    name: wasp
+    tier: node
+    wasp.io: ""
+  name: wasp-agent
+  namespace: {{ wasp_namespace }}
+spec:
+  selector:
+    matchLabels:
+      name: wasp
+  template:
+    metadata:
+      annotations:
+        description: Configures swap for workloads
+      labels:
+        name: wasp
+    spec:
+      containers:
+      - env:
+        - name: MEMORY_MAX_THRESHOLD
+          value: 50Mi
+        - name: MAX_SWAP_IN_TRAFFIC_PER_INTERVAL
+          value: "30000"
+        - name: MAX_SWAP_OUT_TRAFFIC_PER_INTERVAL
+          value: "30000"
+        - name: INTERVAL
+          value: "30"
+        - name: VERBOSITY
+          value: "3"
+        image: {{ operator_image_name }}
+        imagePullPolicy: {{ pull_policy }}
+        name: wasp-agent
+        resources:
+          requests:
+            cpu: 100m
+            memory: 50M
+        securityContext:
+          privileged: true
+        volumeMounts:
+        - mountPath: /host
+          name: host
+      hostPID: true
+      hostUsers: true
+      priorityClassName: system-node-critical
+      serviceAccountName: wasp
+      terminationGracePeriodSeconds: 5
+      volumes:
+      - hostPath:
+          path: /
+        name: host
+  updateStrategy:
+    rollingUpdate:
+      maxSurge: 0
+      maxUnavailable: 10%
+    type: RollingUpdate
