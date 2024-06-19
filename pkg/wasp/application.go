@@ -23,19 +23,24 @@ import (
 	"flag"
 	"io/ioutil"
 	"k8s.io/client-go/tools/cache"
+	"k8s.io/klog/v2"
 	"k8s.io/kubernetes/pkg/kubelet/eviction/api"
+	"kubevirt.io/wasp/pkg/client"
+	"kubevirt.io/wasp/pkg/informers"
 	"kubevirt.io/wasp/pkg/log"
+	eviction_controller "kubevirt.io/wasp/pkg/wasp/eviction-controller"
 	"kubevirt.io/wasp/pkg/wasp/parser"
 	"os"
 	"strconv"
-	"time"
 )
 
 type WaspApp struct {
+	evictionController           *eviction_controller.EvictionController
 	podInformer                  cache.SharedIndexInformer
 	nodeInformer                 cache.SharedIndexInformer
 	ctx                          context.Context
 	memoryAvailableThreshold     *api.Threshold
+	cli                          client.WaspClient
 	maxSwapInTrafficPerInterval  int
 	maxSwapOutTrafficPerInterval int
 	minTimeInterval              int
@@ -77,6 +82,12 @@ func Execute() {
 		panic(err)
 	}
 	app.waspNs = string(nsBytes)
+	app.cli, err = client.GetWaspClient()
+	if err != nil {
+		panic(err)
+	}
+	app.podInformer = informers.GetPodInformer(app.cli)
+	app.nodeInformer = informers.GetNodeInformer(app.cli)
 
 	log.Log.Infof("MEMORY_AVAILABLE_THRESHOLD:%v "+
 		"MAX_SWAP_IN_TRAFFIC_PER_INTERVAL:%v "+
@@ -91,7 +102,37 @@ func Execute() {
 		app.minTimeInterval,
 		app.nodeName,
 		app.waspNs,
-		app.fsRoot)
+		app.fsRoot,
+	)
+	stop := ctx.Done()
+	app.initEvictionController(stop)
+	app.Run(stop)
+}
 
-	time.Sleep(5 * time.Hour)
+func (waspapp *WaspApp) initEvictionController(stop <-chan struct{}) {
+	waspapp.evictionController = eviction_controller.NewEvictionController(waspapp.cli,
+		waspapp.podInformer,
+		waspapp.nodeInformer,
+		waspapp.nodeName,
+		stop,
+	)
+}
+
+func (waspapp *WaspApp) Run(stop <-chan struct{}) {
+	go waspapp.podInformer.Run(stop)
+	go waspapp.nodeInformer.Run(stop)
+
+	if !cache.WaitForCacheSync(stop,
+		waspapp.podInformer.HasSynced,
+		waspapp.nodeInformer.HasSynced,
+	) {
+		klog.Warningf("failed to wait for caches to sync")
+	}
+	log.Log.Infof("wallak1")
+
+	go func() {
+		waspapp.evictionController.Run(context.Background())
+	}()
+	<-waspapp.ctx.Done()
+
 }

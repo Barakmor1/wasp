@@ -27,14 +27,25 @@ func getClusterPolicyRules() []rbacv1.PolicyRule {
 				"",
 			},
 			Resources: []string{
-				"pods",
 				"nodes",
+			},
+			Verbs: []string{
+				"watch",
+				"list",
+				"update",
+			},
+		},
+		{
+			APIGroups: []string{
+				"",
+			},
+			Resources: []string{
+				"pods",
 			},
 			Verbs: []string{
 				"delete",
 				"watch",
 				"list",
-				"update",
 			},
 		},
 	}
