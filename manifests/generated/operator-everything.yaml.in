@@ -102,16 +102,22 @@ spec:
     spec:
       containers:
       - env:
-        - name: MEMORY_MAX_THRESHOLD
+        - name: MEMORY_AVAILABLE_THRESHOLD
           value: 50Mi
         - name: MAX_SWAP_IN_TRAFFIC_PER_INTERVAL
           value: "30000"
         - name: MAX_SWAP_OUT_TRAFFIC_PER_INTERVAL
           value: "30000"
-        - name: INTERVAL
+        - name: MIN_TIME_INTERVAL
           value: "30"
         - name: VERBOSITY
           value: "3"
+        - name: FSROOT
+          value: /host
+        - name: NODE_NAME
+          valueFrom:
+            fieldRef:
+              fieldPath: spec.nodeName
         image: quay.io/bmordeha/wasp:latest
         imagePullPolicy: Always
         name: wasp-agent

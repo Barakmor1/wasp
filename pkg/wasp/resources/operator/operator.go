@@ -82,7 +82,7 @@ func createDaemonSet(args *FactoryArgs) []client.Object {
 func createDaemonSetEnvVar(maxSwapInTrafficPerInterval, memoryMaxThreshold, maxSwapOutTrafficPerInterval, interval, verbosity string) []corev1.EnvVar {
 	return []corev1.EnvVar{
 		{
-			Name:  "MEMORY_MAX_THRESHOLD",
+			Name:  "MEMORY_AVAILABLE_THRESHOLD",
 			Value: memoryMaxThreshold,
 		},
 		{
@@ -94,12 +94,24 @@ func createDaemonSetEnvVar(maxSwapInTrafficPerInterval, memoryMaxThreshold, maxS
 			Value: maxSwapOutTrafficPerInterval,
 		},
 		{
-			Name:  "INTERVAL",
+			Name:  "MIN_TIME_INTERVAL",
 			Value: interval,
 		},
 		{
 			Name:  "VERBOSITY",
 			Value: verbosity,
+		},
+		{
+			Name:  "FSROOT",
+			Value: "/host",
+		},
+		{
+			Name: "NODE_NAME",
+			ValueFrom: &corev1.EnvVarSource{
+				FieldRef: &corev1.ObjectFieldSelector{
+					FieldPath: "spec.nodeName",
+				},
+			},
 		},
 	}
 }
@@ -109,12 +121,6 @@ func createWaspDaemonSet(namespace, maxSwapInTrafficPerInterval, memoryMaxThresh
 		Name:            "wasp-agent",
 		Image:           waspImage,
 		ImagePullPolicy: corev1.PullPolicy(pullPolicy),
-		Env: []corev1.EnvVar{
-			{
-				Name:  "FSROOT",
-				Value: "/host",
-			},
-		},
 		Resources: corev1.ResourceRequirements{
 			Requests: corev1.ResourceList{
 				corev1.ResourceCPU:    resource.MustParse("100m"),

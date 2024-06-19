@@ -26,6 +26,7 @@ require (
 	github.com/onsi/ginkgo/v2 v2.11.0
 	github.com/onsi/gomega v1.27.10
 	k8s.io/client-go v8.0.0+incompatible
+	k8s.io/kubernetes v1.28.4
 	kubevirt.io/application-aware-quota v1.2.3
 	kubevirt.io/qe-tools v0.1.8
 	sigs.k8s.io/controller-runtime v0.16.3
@@ -74,7 +75,7 @@ require (
 	k8s.io/apiextensions-apiserver v0.28.3 // indirect
 	k8s.io/klog/v2 v2.100.1
 	k8s.io/kube-openapi v0.0.0-20230717233707-2695361300d9 // indirect
-	k8s.io/utils v0.0.0-20230505201702-9f6742963106 // indirect
+	k8s.io/utils v0.0.0-20230505201702-9f6742963106
 	kubevirt.io/api v1.2.0 // indirect
 	kubevirt.io/controller-lifecycle-operator-sdk v0.2.6
 	kubevirt.io/controller-lifecycle-operator-sdk/api v0.0.0-20220329064328-f3cc58c6ed90
