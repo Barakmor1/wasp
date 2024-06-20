@@ -128,7 +128,6 @@ func (waspapp *WaspApp) Run(stop <-chan struct{}) {
 	) {
 		klog.Warningf("failed to wait for caches to sync")
 	}
-	log.Log.Infof("wallak1")
 
 	go func() {
 		waspapp.evictionController.Run(context.Background())
