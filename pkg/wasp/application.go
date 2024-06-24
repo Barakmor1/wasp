@@ -22,31 +22,31 @@ import (
 	"context"
 	"flag"
 	"io/ioutil"
+	"k8s.io/apimachinery/pkg/api/resource"
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/klog/v2"
-	"k8s.io/kubernetes/pkg/kubelet/eviction/api"
 	"kubevirt.io/wasp/pkg/client"
 	"kubevirt.io/wasp/pkg/informers"
 	"kubevirt.io/wasp/pkg/log"
 	eviction_controller "kubevirt.io/wasp/pkg/wasp/eviction-controller"
-	"kubevirt.io/wasp/pkg/wasp/parser"
 	"os"
 	"strconv"
+	"time"
 )
 
 type WaspApp struct {
-	evictionController           *eviction_controller.EvictionController
-	podInformer                  cache.SharedIndexInformer
-	nodeInformer                 cache.SharedIndexInformer
-	ctx                          context.Context
-	memoryAvailableThreshold     *api.Threshold
-	cli                          client.WaspClient
-	maxSwapInTrafficPerInterval  int
-	maxSwapOutTrafficPerInterval int
-	minTimeInterval              int
-	waspNs                       string
-	nodeName                     string
-	fsRoot                       string
+	evictionController      *eviction_controller.EvictionController
+	podInformer             cache.SharedIndexInformer
+	nodeInformer            cache.SharedIndexInformer
+	ctx                     context.Context
+	minAvailableMemoryBytes resource.Quantity
+	cli                     client.WaspClient
+	maxSwapInRate           float32
+	maxSwapOutRate          float32
+	minTimeInterval         time.Duration
+	waspNs                  string
+	nodeName                string
+	fsRoot                  string
 }
 
 func Execute() {
@@ -59,19 +59,29 @@ func Execute() {
 	minTimeInterval := os.Getenv("MIN_TIME_INTERVAL")
 	app.nodeName = os.Getenv("NODE_NAME")
 	app.fsRoot = os.Getenv("FSROOT")
-	app.memoryAvailableThreshold, _ = parser.ParseThresholdStatement(api.SignalMemoryAvailable, memoryAvailThreshold)
-	app.minTimeInterval, err = strconv.Atoi(minTimeInterval)
+
+	app.minAvailableMemoryBytes, err = resource.ParseQuantity(memoryAvailThreshold)
 	if err != nil {
 		panic(err)
 	}
-	app.maxSwapInTrafficPerInterval, err = strconv.Atoi(maxSwapInTrafficPerInterval)
+
+	minTimeIntervalToConvert, err := strconv.Atoi(minTimeInterval)
 	if err != nil {
 		panic(err)
 	}
-	app.maxSwapOutTrafficPerInterval, err = strconv.Atoi(maxSwapOutTrafficPerInterval)
+	app.minTimeInterval = time.Duration(minTimeIntervalToConvert) * time.Second
+
+	maxSwapInRateToConvert, err := strconv.Atoi(maxSwapInTrafficPerInterval)
 	if err != nil {
 		panic(err)
 	}
+	app.maxSwapInRate = float32(maxSwapInRateToConvert)
+
+	maxSwapOutRateToConvert, err := strconv.Atoi(maxSwapOutTrafficPerInterval)
+	if err != nil {
+		panic(err)
+	}
+	app.maxSwapInRate = float32(maxSwapOutRateToConvert)
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -96,9 +106,9 @@ func Execute() {
 		"nodeName: %v "+
 		"ns: %v "+
 		"fsRoot: %v",
-		app.memoryAvailableThreshold,
-		app.maxSwapInTrafficPerInterval,
-		app.maxSwapOutTrafficPerInterval,
+		app.minAvailableMemoryBytes,
+		app.maxSwapInRate,
+		app.maxSwapOutRate,
 		app.minTimeInterval,
 		app.nodeName,
 		app.waspNs,
@@ -114,6 +124,10 @@ func (waspapp *WaspApp) initEvictionController(stop <-chan struct{}) {
 		waspapp.podInformer,
 		waspapp.nodeInformer,
 		waspapp.nodeName,
+		waspapp.maxSwapInRate,
+		waspapp.maxSwapOutRate,
+		waspapp.minAvailableMemoryBytes,
+		waspapp.minTimeInterval,
 		stop,
 	)
 }
@@ -130,7 +144,7 @@ func (waspapp *WaspApp) Run(stop <-chan struct{}) {
 	}
 
 	go func() {
-		waspapp.evictionController.Run(context.Background())
+		waspapp.evictionController.Run(waspapp.ctx)
 	}()
 	<-waspapp.ctx.Done()
 

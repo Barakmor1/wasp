@@ -21,6 +21,10 @@ github.com/go-logfmt/logfmt
 ## explicit; go 1.16
 github.com/go-logr/logr
 github.com/go-logr/logr/funcr
+# github.com/go-ole/go-ole v1.2.6
+## explicit; go 1.12
+github.com/go-ole/go-ole
+github.com/go-ole/go-ole/oleutil
 # github.com/go-openapi/jsonpointer v0.19.6
 ## explicit; go 1.13
 github.com/go-openapi/jsonpointer
@@ -141,11 +145,18 @@ github.com/openshift/custom-resource-status/conditions/v1
 # github.com/pkg/errors v0.9.1
 ## explicit
 github.com/pkg/errors
+# github.com/shirou/gopsutil v3.21.11+incompatible
+## explicit
+github.com/shirou/gopsutil/internal/common
+github.com/shirou/gopsutil/mem
 # github.com/spf13/pflag v1.0.5
 ## explicit; go 1.12
 github.com/spf13/pflag
 # github.com/stretchr/testify v1.8.3
 ## explicit; go 1.20
+# github.com/yusufpapurcu/wmi v1.2.4
+## explicit; go 1.16
+github.com/yusufpapurcu/wmi
 # golang.org/x/mod v0.10.0
 ## explicit; go 1.17
 golang.org/x/mod/internal/lazyregexp

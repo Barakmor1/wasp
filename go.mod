@@ -25,6 +25,7 @@ require (
 	github.com/ghodss/yaml v1.0.0
 	github.com/onsi/ginkgo/v2 v2.11.0
 	github.com/onsi/gomega v1.27.10
+	github.com/shirou/gopsutil v3.21.11+incompatible
 	k8s.io/client-go v8.0.0+incompatible
 	k8s.io/kubernetes v1.28.4
 	kubevirt.io/application-aware-quota v1.2.3
@@ -34,9 +35,11 @@ require (
 
 require (
 	github.com/emicklei/go-restful/v3 v3.11.0 // indirect
+	github.com/go-ole/go-ole v1.2.6 // indirect
 	github.com/go-task/slim-sprig v0.0.0-20230315185526-52ccab3ef572 // indirect
 	github.com/google/pprof v0.0.0-20210720184732-4bb14d4b1be1 // indirect
 	github.com/stretchr/testify v1.8.3 // indirect
+	github.com/yusufpapurcu/wmi v1.2.4 // indirect
 )
 
 require (

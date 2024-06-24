@@ -5,7 +5,9 @@ import (
 	"encoding/json"
 	"fmt"
 	v1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/fields"
 	"k8s.io/apimachinery/pkg/types"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	"k8s.io/apimachinery/pkg/util/wait"
@@ -14,9 +16,9 @@ import (
 	"kubevirt.io/wasp/pkg/client"
 	"kubevirt.io/wasp/pkg/log"
 	pod_evictor "kubevirt.io/wasp/pkg/wasp/pod-evictor"
-	pod_filter "kubevirt.io/wasp/pkg/wasp/pod-filter"
 	pod_ranker "kubevirt.io/wasp/pkg/wasp/pod-ranker"
 	shortage_detector "kubevirt.io/wasp/pkg/wasp/shortage-detector"
+	stats_collector "kubevirt.io/wasp/pkg/wasp/stats-collector"
 	"time"
 )
 
@@ -26,8 +28,8 @@ const (
 )
 
 type EvictionController struct {
+	statsCollector   stats_collector.StatsCollector
 	shortageDetector shortage_detector.ShortageDetector
-	podFilter        pod_filter.PodFilter
 	podRanker        pod_ranker.PodRanker
 	podEvictor       pod_evictor.PodEvictor
 	nodeName         string
@@ -39,15 +41,26 @@ type EvictionController struct {
 	stop             <-chan struct{}
 }
 
-func NewEvictionController(waspCli client.WaspClient, podInformer cache.SharedIndexInformer, nodeInformer cache.SharedIndexInformer, nodeName string, stop <-chan struct{}) *EvictionController {
+func NewEvictionController(waspCli client.WaspClient,
+	podInformer cache.SharedIndexInformer,
+	nodeInformer cache.SharedIndexInformer,
+	nodeName string,
+	maxSwapInRate float32,
+	maxSwapOutRate float32,
+	minAvailableMemory resource.Quantity,
+	minTimeInterval time.Duration,
+	stop <-chan struct{}) *EvictionController {
+	sc := stats_collector.NewStatsCollectorImpl()
 	ctrl := &EvictionController{
-		nodeName:     nodeName,
-		waspCli:      waspCli,
-		resyncPeriod: metav1.Duration{Duration: 5 * time.Second}.Duration,
-		podInformer:  podInformer,
-		nodeInformer: nodeInformer,
-		nodeLister:   v1lister.NewNodeLister(nodeInformer.GetIndexer()),
-		stop:         stop,
+		statsCollector:   sc,
+		shortageDetector: shortage_detector.NewShortageDetectorImpl(sc, maxSwapInRate, maxSwapOutRate, minAvailableMemory.Value(), minTimeInterval), //todo: here and make sure you use all the vars
+		nodeName:         nodeName,
+		waspCli:          waspCli,
+		resyncPeriod:     metav1.Duration{Duration: 5 * time.Second}.Duration,
+		podInformer:      podInformer,
+		nodeInformer:     nodeInformer,
+		nodeLister:       v1lister.NewNodeLister(nodeInformer.GetIndexer()),
+		stop:             stop,
 	}
 	return ctrl
 }
@@ -57,17 +70,38 @@ func (ctrl *EvictionController) Run(ctx context.Context) {
 	log.Log.Infof("Starting ARQ controller")
 	defer log.Log.Infof("Shutting ARQ Controller")
 
-	go wait.Until(ctrl.HandleMemorySwapEviction, ctrl.resyncPeriod, ctrl.stop)
+	go wait.Until(ctrl.handleMemorySwapEviction, ctrl.resyncPeriod, ctrl.stop)
+	go wait.Until(ctrl.statsCollector.GatherStats, metav1.Duration{Duration: 1 * time.Second}.Duration, ctrl.stop)
 
 	<-ctx.Done()
 }
 
-func (ctrl *EvictionController) HandleMemorySwapEviction() {
-	shouldEvict, err := ctrl.shortageDetector.ShouldEvict()
-	if err != nil {
-		log.Log.Infof(err.Error())
+func (ctrl *EvictionController) gatherStatistics() (*v1.Node, error) {
+	if !waitForSyncedStore(time.After(timeToWaitForCacheSync), ctrl.nodeInformer.HasSynced) {
+		return nil, fmt.Errorf("nodes caches not synchronized")
+	}
+	return ctrl.nodeLister.Get(ctrl.nodeName)
+}
+
+func (ctrl *EvictionController) handleMemorySwapEviction() {
+
+	//debug
+	log.Log.Infof(fmt.Sprintf("In handleMemorySwapEviction last 10 stats:"))
+	statsList := ctrl.statsCollector.GetStatsList()
+	limit := 10
+	if len(statsList) < 10 {
+		limit = len(statsList)
+	}
+	for i := 0; i < limit; i++ {
+		fmt.Printf("Stats %d: %+v\n", i+1, statsList[i])
+	}
+
+	if true {
 		return
 	}
+	//end debug.
+
+	shouldEvict := ctrl.shortageDetector.ShouldEvict()
 	node, err := ctrl.getNode()
 	if err != nil {
 		log.Log.Infof(err.Error())
@@ -92,21 +126,20 @@ func (ctrl *EvictionController) HandleMemorySwapEviction() {
 	if !shouldEvict {
 		return
 	}
-	pods, err := ctrl.listPodsOnNode()
+	pods, err := ctrl.listRunningPodsOnNode()
 	if err != nil {
 		log.Log.Infof(err.Error())
 		return
 	}
 
-	filteredPods := ctrl.podFilter.FilterPods(pods)
-	rankedFilterdPods := ctrl.podRanker.RankPods(filteredPods)
+	rankedPods := ctrl.podRanker.RankPods(pods)
 
-	if len(rankedFilterdPods) == 0 {
+	if len(rankedPods) == 0 {
 		log.Log.Infof("Wasp evictor doesn't have any pod to evict")
 		return
 	}
 
-	err = ctrl.podEvictor.EvictPod(rankedFilterdPods[0])
+	err = ctrl.podEvictor.EvictPod(rankedPods[0])
 	if err != nil {
 		log.Log.Infof(err.Error())
 	}
@@ -184,24 +217,47 @@ func waitForSyncedStore(timeout <-chan time.Time, informerSynced func() bool) bo
 	return true
 }
 
-func (ctrl *EvictionController) listPodsOnNode() ([]*v1.Pod, error) {
-	if !waitForSyncedStore(time.After(timeToWaitForCacheSync), ctrl.podInformer.HasSynced) {
-		log.Log.Infof("nodes caches not synchronized")
-	}
-	objs, err := ctrl.podInformer.GetIndexer().ByIndex("node", ctrl.nodeName)
+func (ctrl *EvictionController) listRunningPodsOnNode() ([]*v1.Pod, error) {
+	handlerNodeSelector := fields.ParseSelectorOrDie("spec.nodeName=" + ctrl.nodeName)
+	list, err := ctrl.waspCli.CoreV1().Pods(v1.NamespaceAll).List(context.Background(), metav1.ListOptions{
+		FieldSelector: handlerNodeSelector.String(),
+	})
 	if err != nil {
 		return nil, err
 	}
 	var pods []*v1.Pod
-	for _, obj := range objs {
-		pods = append(pods, obj.(*v1.Pod))
+
+	for i := range list.Items {
+		pod := &list.Items[i]
+
+		// Some pods get stuck in a pending Termination during shutdown
+		// due to virt-handler not being available to unmount container disk
+		// mount propagation. A pod with all containers terminated is not
+		// considered alive
+		allContainersTerminated := false
+		if len(pod.Status.ContainerStatuses) > 0 {
+			allContainersTerminated = true
+			for _, status := range pod.Status.ContainerStatuses {
+				if status.State.Terminated == nil {
+					allContainersTerminated = false
+					break
+				}
+			}
+		}
+
+		phase := pod.Status.Phase
+		toAppendPod := !allContainersTerminated && phase != v1.PodFailed && phase != v1.PodSucceeded
+		if toAppendPod {
+			pods = append(pods, pod)
+			continue
+		}
 	}
 	return pods, nil
 }
 
 func (ctrl *EvictionController) getNode() (*v1.Node, error) {
 	if !waitForSyncedStore(time.After(timeToWaitForCacheSync), ctrl.nodeInformer.HasSynced) {
-		log.Log.Infof("nodes caches not synchronized")
+		return nil, fmt.Errorf("nodes caches not synchronized")
 	}
 	return ctrl.nodeLister.Get(ctrl.nodeName)
 }
