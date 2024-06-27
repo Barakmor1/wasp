@@ -80,33 +80,33 @@ func createServiceAccount(namespace string) *corev1.ServiceAccount {
 func createDaemonSet(args *FactoryArgs) []client.Object {
 	return []client.Object{
 		createWaspDaemonSet(args.NamespacedArgs.Namespace,
-			args.NamespacedArgs.MaxSwapInPagesPerInterval,
-			args.NamespacedArgs.MemoryMaxThreshold,
-			args.NamespacedArgs.MaxSwapOutPagesPerInterval,
-			args.NamespacedArgs.Interval,
+			args.NamespacedArgs.MaxAverageSwapInPerSecond,
+			args.NamespacedArgs.MemoryAvailableThreshold,
+			args.NamespacedArgs.MaxAverageSwapOutPerSecond,
+			args.NamespacedArgs.MinTimeInterval,
 			args.NamespacedArgs.Verbosity,
 			args.Image,
 			args.NamespacedArgs.PullPolicy),
 	}
 }
 
-func createDaemonSetEnvVar(maxSwapInTrafficPerInterval, memoryMaxThreshold, maxSwapOutTrafficPerInterval, interval, verbosity string) []corev1.EnvVar {
+func createDaemonSetEnvVar(maxAverageSwapInPerSecond, memoryMaxThreshold, maxAverageSwapOutPerSecond, minTimeInterval, verbosity string) []corev1.EnvVar {
 	return []corev1.EnvVar{
 		{
 			Name:  "MEMORY_AVAILABLE_THRESHOLD",
 			Value: memoryMaxThreshold,
 		},
 		{
-			Name:  "MAX_SWAP_IN_TRAFFIC_PER_INTERVAL",
-			Value: maxSwapInTrafficPerInterval,
+			Name:  "MAX_AVERAGE_SWAP_IN_PER_SECOND",
+			Value: maxAverageSwapInPerSecond,
 		},
 		{
-			Name:  "MAX_SWAP_OUT_TRAFFIC_PER_INTERVAL",
-			Value: maxSwapOutTrafficPerInterval,
+			Name:  "MAX_AVERAGE_SWAP_OUT_PER_SECOND",
+			Value: maxAverageSwapOutPerSecond,
 		},
 		{
 			Name:  "MIN_TIME_INTERVAL",
-			Value: interval,
+			Value: minTimeInterval,
 		},
 		{
 			Name:  "VERBOSITY",
@@ -127,7 +127,7 @@ func createDaemonSetEnvVar(maxSwapInTrafficPerInterval, memoryMaxThreshold, maxS
 	}
 }
 
-func createWaspDaemonSet(namespace, maxSwapInTrafficPerInterval, memoryMaxThreshold, maxSwapOutTrafficPerInterval, interval, verbosity, waspImage, pullPolicy string) *appsv1.DaemonSet {
+func createWaspDaemonSet(namespace, maxAverageSwapInPerSecond, memoryMaxThreshold, maxAverageSwapOutPerSecond, minTimeInterval, verbosity, waspImage, pullPolicy string) *appsv1.DaemonSet {
 	container := corev1.Container{
 		Name:            "wasp-agent",
 		Image:           waspImage,
@@ -148,7 +148,7 @@ func createWaspDaemonSet(namespace, maxSwapInTrafficPerInterval, memoryMaxThresh
 			},
 		},
 	}
-	container.Env = createDaemonSetEnvVar(maxSwapInTrafficPerInterval, memoryMaxThreshold, maxSwapOutTrafficPerInterval, interval, verbosity)
+	container.Env = createDaemonSetEnvVar(maxAverageSwapInPerSecond, memoryMaxThreshold, maxAverageSwapOutPerSecond, minTimeInterval, verbosity)
 
 	labels := resources.WithLabels(map[string]string{"name": "wasp"}, utils2.DaemonSetLabels)
 	ds := &appsv1.DaemonSet{

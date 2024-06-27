@@ -1,0 +1,23 @@
+apiVersion: machineconfiguration.openshift.io/v1
+kind: KubeletConfig
+metadata:
+  name: custom-config
+spec:
+  machineConfigPoolSelector:
+    matchLabels:
+      pools.operator.machineconfiguration.openshift.io/worker: ''  # MCP
+      #machine.openshift.io/cluster-api-machine-role: worker # machine
+      #node-role.kubernetes.io/worker: '' # node
+  kubeletConfig:
+    failSwapOn: false
+    evictionHard:
+      memory.available: "0%"
+      nodefs.available: "10%"
+      nodefs.inodesFree: "5%"
+      imagefs.available: "15%"
+      imagefs.inodesFree: "5%"
+    #todo: memorySwap and the featureGates should be deleted once swap configuration is included in this project
+    memorySwap:
+      swapBehavior: LimitedSwap
+    featureGates:
+      NodeSwap: true

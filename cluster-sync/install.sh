@@ -3,9 +3,20 @@
 set -e
 
 function install_wasp {
-  _kubectl apply -f "./_out/manifests/release/wasp.yaml"
+  if _kubectl get crd securitycontextconstraints.security.openshift.io &> /dev/null; then
+    echo wallak1
+    _kubectl apply -f "./_out/manifests/release/wasp.yaml"
+  else
+    filtered_yaml=$(awk '/^allowHostDirVolumePlugin: true$/,/^---/{next}1' "./_out/manifests/release/wasp.yaml")
+    echo "$filtered_yaml" | _kubectl apply -f -
+  fi
 }
 
 function delete_wasp {
-  _kubectl delete -f "./_out/manifests/release/wasp.yaml"
+  if _kubectl get crd securitycontextconstraints.security.openshift.io &> /dev/null; then
+    _kubectl delete --ignore-not-found -f "./_out/manifests/release/wasp.yaml"
+  else
+    filtered_yaml=$(awk '/^allowHostDirVolumePlugin: true$/,/^---/{next}1' "./_out/manifests/release/wasp.yaml")
+    echo "$filtered_yaml" | _kubectl delete --ignore-not-found -f -
+  fi
 }

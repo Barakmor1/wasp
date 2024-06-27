@@ -35,18 +35,18 @@ import (
 )
 
 type WaspApp struct {
-	evictionController      *eviction_controller.EvictionController
-	podInformer             cache.SharedIndexInformer
-	nodeInformer            cache.SharedIndexInformer
-	ctx                     context.Context
-	minAvailableMemoryBytes resource.Quantity
-	cli                     client.WaspClient
-	maxSwapInRate           float32
-	maxSwapOutRate          float32
-	minTimeInterval         time.Duration
-	waspNs                  string
-	nodeName                string
-	fsRoot                  string
+	evictionController         *eviction_controller.EvictionController
+	podInformer                cache.SharedIndexInformer
+	nodeInformer               cache.SharedIndexInformer
+	ctx                        context.Context
+	minAvailableMemoryBytes    resource.Quantity
+	cli                        client.WaspClient
+	maxAverageSwapInPerSecond  float32
+	maxAverageSwapOutPerSecond float32
+	minTimeInterval            time.Duration
+	waspNs                     string
+	nodeName                   string
+	fsRoot                     string
 }
 
 func Execute() {
@@ -54,8 +54,8 @@ func Execute() {
 	flag.Parse()
 	var app = WaspApp{}
 	memoryAvailThreshold := os.Getenv("MEMORY_AVAILABLE_THRESHOLD")
-	maxSwapInTrafficPerInterval := os.Getenv("MAX_SWAP_IN_TRAFFIC_PER_INTERVAL")
-	maxSwapOutTrafficPerInterval := os.Getenv("MAX_SWAP_OUT_TRAFFIC_PER_INTERVAL")
+	maxAverageSwapInPerSecond := os.Getenv("MAX_AVERAGE_SWAP_IN_PER_SECOND")
+	maxAverageSwapOutPerSecond := os.Getenv("MAX_AVERAGE_SWAP_OUT_PER_SECOND")
 	minTimeInterval := os.Getenv("MIN_TIME_INTERVAL")
 	app.nodeName = os.Getenv("NODE_NAME")
 	app.fsRoot = os.Getenv("FSROOT")
@@ -71,17 +71,17 @@ func Execute() {
 	}
 	app.minTimeInterval = time.Duration(minTimeIntervalToConvert) * time.Second
 
-	maxSwapInRateToConvert, err := strconv.Atoi(maxSwapInTrafficPerInterval)
+	maxAverageSwapInPerSecondToConvert, err := strconv.Atoi(maxAverageSwapInPerSecond)
 	if err != nil {
 		panic(err)
 	}
-	app.maxSwapInRate = float32(maxSwapInRateToConvert)
+	app.maxAverageSwapInPerSecond = float32(maxAverageSwapInPerSecondToConvert)
 
-	maxSwapOutRateToConvert, err := strconv.Atoi(maxSwapOutTrafficPerInterval)
+	maxSwapOutRateToConvert, err := strconv.Atoi(maxAverageSwapOutPerSecond)
 	if err != nil {
 		panic(err)
 	}
-	app.maxSwapInRate = float32(maxSwapOutRateToConvert)
+	app.maxAverageSwapOutPerSecond = float32(maxSwapOutRateToConvert)
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -100,15 +100,15 @@ func Execute() {
 	app.nodeInformer = informers.GetNodeInformer(app.cli)
 
 	log.Log.Infof("MEMORY_AVAILABLE_THRESHOLD:%v "+
-		"MAX_SWAP_IN_TRAFFIC_PER_INTERVAL:%v "+
-		"MAX_SWAP_OUT_TRAFFIC_PER_INTERVAL:%v "+
+		"MAX_AVERAGE_SWAP_IN_PER_SECOND:%v "+
+		"MAX_AVERAGE_SWAP_OUT_PER_SECOND:%v "+
 		"INTERVAL:%v "+
 		"nodeName: %v "+
 		"ns: %v "+
 		"fsRoot: %v",
 		app.minAvailableMemoryBytes,
-		app.maxSwapInRate,
-		app.maxSwapOutRate,
+		app.maxAverageSwapInPerSecond,
+		app.maxAverageSwapOutPerSecond,
 		app.minTimeInterval,
 		app.nodeName,
 		app.waspNs,
@@ -124,8 +124,8 @@ func (waspapp *WaspApp) initEvictionController(stop <-chan struct{}) {
 		waspapp.podInformer,
 		waspapp.nodeInformer,
 		waspapp.nodeName,
-		waspapp.maxSwapInRate,
-		waspapp.maxSwapOutRate,
+		waspapp.maxAverageSwapInPerSecond,
+		waspapp.maxAverageSwapOutPerSecond,
 		waspapp.minAvailableMemoryBytes,
 		waspapp.minTimeInterval,
 		stop,

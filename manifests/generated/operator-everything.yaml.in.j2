@@ -110,10 +110,10 @@ spec:
       - env:
         - name: MEMORY_AVAILABLE_THRESHOLD
           value: 50Mi
-        - name: MAX_SWAP_IN_TRAFFIC_PER_INTERVAL
-          value: "30000"
-        - name: MAX_SWAP_OUT_TRAFFIC_PER_INTERVAL
-          value: "30000"
+        - name: MAX_AVERAGE_SWAP_IN_PER_SECOND
+          value: "16"
+        - name: MAX_AVERAGE_SWAP_OUT_PER_SECOND
+          value: "100"
         - name: MIN_TIME_INTERVAL
           value: "30"
         - name: VERBOSITY

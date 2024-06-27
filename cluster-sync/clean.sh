@@ -3,6 +3,7 @@
 source ./hack/build/config.sh
 source ./cluster-up/hack/common.sh
 source ./cluster-up/cluster/${KUBEVIRT_PROVIDER}/provider.sh
+source cluster-sync/install.sh
 
 echo "Cleaning up ..."
 
@@ -11,7 +12,7 @@ LABELS=("wasp.io")
 NAMESPACES=(default kube-system "${WASP_NAMESPACE}")
 
 
-_kubectl delete --ignore-not-found -f "${OPERATOR_MANIFEST}"
+delete_wasp
 
 # Everything should be deleted by now, but just to be sure
 for n in ${NAMESPACES[@]}; do

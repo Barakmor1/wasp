@@ -13,6 +13,7 @@ import (
 	"k8s.io/apimachinery/pkg/util/wait"
 	v1lister "k8s.io/client-go/listers/core/v1"
 	"k8s.io/client-go/tools/cache"
+	kubetypes "k8s.io/kubernetes/pkg/kubelet/types"
 	"kubevirt.io/wasp/pkg/client"
 	"kubevirt.io/wasp/pkg/log"
 	pod_evictor "kubevirt.io/wasp/pkg/wasp/pod-evictor"
@@ -45,17 +46,19 @@ func NewEvictionController(waspCli client.WaspClient,
 	podInformer cache.SharedIndexInformer,
 	nodeInformer cache.SharedIndexInformer,
 	nodeName string,
-	maxSwapInRate float32,
-	maxSwapOutRate float32,
+	maxAverageSwapInPerSecond float32,
+	maxAverageSwapOutPerSecond float32,
 	minAvailableMemory resource.Quantity,
 	minTimeInterval time.Duration,
 	stop <-chan struct{}) *EvictionController {
 	sc := stats_collector.NewStatsCollectorImpl()
 	ctrl := &EvictionController{
 		statsCollector:   sc,
-		shortageDetector: shortage_detector.NewShortageDetectorImpl(sc, maxSwapInRate, maxSwapOutRate, minAvailableMemory.Value(), minTimeInterval), //todo: here and make sure you use all the vars
+		shortageDetector: shortage_detector.NewShortageDetectorImpl(sc, maxAverageSwapInPerSecond, maxAverageSwapOutPerSecond, minAvailableMemory.Value(), minTimeInterval), //todo: here and make sure you use all the vars
 		nodeName:         nodeName,
 		waspCli:          waspCli,
+		podEvictor:       pod_evictor.NewPodEvictorImpl(waspCli),
+		podRanker:        pod_ranker.NewPodRankerImpl(),
 		resyncPeriod:     metav1.Duration{Duration: 5 * time.Second}.Duration,
 		podInformer:      podInformer,
 		nodeInformer:     nodeInformer,
@@ -86,6 +89,7 @@ func (ctrl *EvictionController) gatherStatistics() (*v1.Node, error) {
 func (ctrl *EvictionController) handleMemorySwapEviction() {
 
 	//debug
+
 	log.Log.Infof(fmt.Sprintf("In handleMemorySwapEviction last 10 stats:"))
 	statsList := ctrl.statsCollector.GetStatsList()
 	limit := 10
@@ -99,6 +103,7 @@ func (ctrl *EvictionController) handleMemorySwapEviction() {
 	if true {
 		return
 	}
+
 	//end debug.
 
 	shouldEvict := ctrl.shortageDetector.ShouldEvict()
@@ -229,6 +234,9 @@ func (ctrl *EvictionController) listRunningPodsOnNode() ([]*v1.Pod, error) {
 
 	for i := range list.Items {
 		pod := &list.Items[i]
+		if kubetypes.IsStaticPod(pod) {
+			continue
+		}
 
 		// Some pods get stuck in a pending Termination during shutdown
 		// due to virt-handler not being available to unmount container disk

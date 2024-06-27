@@ -23,8 +23,8 @@ function configure_swap_memory () {
             $ssh node${nodeNum} -- sudo sysctl vm.swappiness=$KUBEVIRT_SWAPPINESS
           fi
 
-          if [ $KUBEVIRT_UNLIMITEDSWAP == "true" ]; then
-            $ssh node${nodeNum} -- "sudo sed -i ':a;N;\$!ba;s/memorySwap: {}/memorySwap:\n  swapBehavior: UnlimitedSwap/g'  /var/lib/kubelet/config.yaml"
+          if [ $KUBEVIRT_LIMITEDSWAP == "true" ]; then
+            $ssh node${nodeNum} -- "sudo sed -i ':a;N;\$!ba;s/memorySwap: {}/memorySwap:\n  swapBehavior: LimitedSwap/g'  /var/lib/kubelet/config.yaml"
             $ssh node${nodeNum} -- sudo systemctl restart kubelet
           fi
       done

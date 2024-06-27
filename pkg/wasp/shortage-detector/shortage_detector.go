@@ -12,20 +12,20 @@ type ShortageDetector interface {
 }
 
 type ShortageDetectorImpl struct {
-	sc                      stats_collector.StatsCollector
-	maxSwapInRate           float32
-	maxSwapOutRate          float32
-	minAvailableMemoryBytes int64
-	minTimeInterval         time.Duration
+	sc                         stats_collector.StatsCollector
+	maxAverageSwapInPerSecond  float32
+	maxAverageSwapOutPerSecond float32
+	minAvailableMemoryBytes    int64
+	minTimeInterval            time.Duration
 }
 
-func NewShortageDetectorImpl(sc stats_collector.StatsCollector, maxSwapInRate, maxSwapOutRate float32, minAvailableMemoryBytes int64, minTimeInterval time.Duration) *ShortageDetectorImpl {
+func NewShortageDetectorImpl(sc stats_collector.StatsCollector, maxAverageSwapInPerSecond, maxAverageSwapOutPerSecond float32, minAvailableMemoryBytes int64, minTimeInterval time.Duration) *ShortageDetectorImpl {
 	return &ShortageDetectorImpl{
-		sc:                      sc,
-		maxSwapInRate:           maxSwapInRate,
-		maxSwapOutRate:          maxSwapOutRate,
-		minAvailableMemoryBytes: minAvailableMemoryBytes,
-		minTimeInterval:         minTimeInterval,
+		sc:                         sc,
+		maxAverageSwapInPerSecond:  maxAverageSwapInPerSecond,
+		maxAverageSwapOutPerSecond: maxAverageSwapOutPerSecond,
+		minAvailableMemoryBytes:    minAvailableMemoryBytes,
+		minTimeInterval:            minTimeInterval,
 	}
 }
 
@@ -55,11 +55,11 @@ func (sdi *ShortageDetectorImpl) ShouldEvict() bool {
 	timeDiffSeconds := float32(firstStat.Time.Sub(secondNewest.Time).Seconds())
 
 	// Calculate rates
-	swapInRate := float32(firstStat.SwapIn-secondNewest.SwapIn) / timeDiffSeconds
-	swapOutRate := float32(firstStat.SwapOut-secondNewest.SwapOut) / timeDiffSeconds
+	averageSwapInPerSecond := float32(firstStat.SwapIn-secondNewest.SwapIn) / timeDiffSeconds
+	averageSwapOutPerSecond := float32(firstStat.SwapOut-secondNewest.SwapOut) / timeDiffSeconds
 
 	// Check conditions
-	if swapInRate > sdi.maxSwapInRate && swapOutRate > sdi.maxSwapOutRate &&
+	if averageSwapInPerSecond > sdi.maxAverageSwapInPerSecond && averageSwapOutPerSecond > sdi.maxAverageSwapOutPerSecond &&
 		firstStat.AvailableMemoryBytes < uint64(sdi.minAvailableMemoryBytes) {
 		return true
 	}
