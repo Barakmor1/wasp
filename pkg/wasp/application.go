@@ -35,18 +35,18 @@ import (
 )
 
 type WaspApp struct {
-	evictionController         *eviction_controller.EvictionController
-	podInformer                cache.SharedIndexInformer
-	nodeInformer               cache.SharedIndexInformer
-	ctx                        context.Context
-	minAvailableMemoryBytes    resource.Quantity
-	cli                        client.WaspClient
-	maxAverageSwapInPerSecond  float32
-	maxAverageSwapOutPerSecond float32
-	minTimeInterval            time.Duration
-	waspNs                     string
-	nodeName                   string
-	fsRoot                     string
+	evictionController              *eviction_controller.EvictionController
+	podInformer                     cache.SharedIndexInformer
+	nodeInformer                    cache.SharedIndexInformer
+	ctx                             context.Context
+	minAvailableMemoryBytes         resource.Quantity
+	cli                             client.WaspClient
+	maxAverageSwapInPagesPerSecond  float32
+	maxAverageSwapOutPagesPerSecond float32
+	AverageWindowSizeSeconds        time.Duration
+	waspNs                          string
+	nodeName                        string
+	fsRoot                          string
 }
 
 func Execute() {
@@ -54,9 +54,9 @@ func Execute() {
 	flag.Parse()
 	var app = WaspApp{}
 	memoryAvailThreshold := os.Getenv("MEMORY_AVAILABLE_THRESHOLD")
-	maxAverageSwapInPerSecond := os.Getenv("MAX_AVERAGE_SWAP_IN_PER_SECOND")
-	maxAverageSwapOutPerSecond := os.Getenv("MAX_AVERAGE_SWAP_OUT_PER_SECOND")
-	minTimeInterval := os.Getenv("MIN_TIME_INTERVAL")
+	maxAverageSwapInPagesPerSecond := os.Getenv("MAX_AVERAGE_SWAP_IN_PAGES_PER_SECOND")
+	maxAverageSwapOutPagesPerSecond := os.Getenv("MAX_AVERAGE_SWAP_OUT_PAGES_PER_SECOND")
+	AverageWindowSizeSeconds := os.Getenv("AVERAGE_WINDOW_SIZE_SECONDS")
 	app.nodeName = os.Getenv("NODE_NAME")
 	app.fsRoot = os.Getenv("FSROOT")
 
@@ -65,23 +65,23 @@ func Execute() {
 		panic(err)
 	}
 
-	minTimeIntervalToConvert, err := strconv.Atoi(minTimeInterval)
+	AverageWindowSizeSecondsToConvert, err := strconv.Atoi(AverageWindowSizeSeconds)
 	if err != nil {
 		panic(err)
 	}
-	app.minTimeInterval = time.Duration(minTimeIntervalToConvert) * time.Second
+	app.AverageWindowSizeSeconds = time.Duration(AverageWindowSizeSecondsToConvert) * time.Second
 
-	maxAverageSwapInPerSecondToConvert, err := strconv.Atoi(maxAverageSwapInPerSecond)
+	maxAverageSwapInPagesPerSecondToConvert, err := strconv.Atoi(maxAverageSwapInPagesPerSecond)
 	if err != nil {
 		panic(err)
 	}
-	app.maxAverageSwapInPerSecond = float32(maxAverageSwapInPerSecondToConvert)
+	app.maxAverageSwapInPagesPerSecond = float32(maxAverageSwapInPagesPerSecondToConvert)
 
-	maxSwapOutRateToConvert, err := strconv.Atoi(maxAverageSwapOutPerSecond)
+	maxSwapOutRateToConvert, err := strconv.Atoi(maxAverageSwapOutPagesPerSecond)
 	if err != nil {
 		panic(err)
 	}
-	app.maxAverageSwapOutPerSecond = float32(maxSwapOutRateToConvert)
+	app.maxAverageSwapOutPagesPerSecond = float32(maxSwapOutRateToConvert)
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -100,16 +100,16 @@ func Execute() {
 	app.nodeInformer = informers.GetNodeInformer(app.cli)
 
 	log.Log.Infof("MEMORY_AVAILABLE_THRESHOLD:%v "+
-		"MAX_AVERAGE_SWAP_IN_PER_SECOND:%v "+
-		"MAX_AVERAGE_SWAP_OUT_PER_SECOND:%v "+
+		"MAX_AVERAGE_SWAP_IN_PAGES_PER_SECOND:%v "+
+		"MAX_AVERAGE_SWAP_OUT_PAGES_PER_SECOND:%v "+
 		"INTERVAL:%v "+
 		"nodeName: %v "+
 		"ns: %v "+
 		"fsRoot: %v",
 		app.minAvailableMemoryBytes,
-		app.maxAverageSwapInPerSecond,
-		app.maxAverageSwapOutPerSecond,
-		app.minTimeInterval,
+		app.maxAverageSwapInPagesPerSecond,
+		app.maxAverageSwapOutPagesPerSecond,
+		app.AverageWindowSizeSeconds,
 		app.nodeName,
 		app.waspNs,
 		app.fsRoot,
@@ -124,10 +124,10 @@ func (waspapp *WaspApp) initEvictionController(stop <-chan struct{}) {
 		waspapp.podInformer,
 		waspapp.nodeInformer,
 		waspapp.nodeName,
-		waspapp.maxAverageSwapInPerSecond,
-		waspapp.maxAverageSwapOutPerSecond,
+		waspapp.maxAverageSwapInPagesPerSecond,
+		waspapp.maxAverageSwapOutPagesPerSecond,
 		waspapp.minAvailableMemoryBytes,
-		waspapp.minTimeInterval,
+		waspapp.AverageWindowSizeSeconds,
 		stop,
 	)
 }

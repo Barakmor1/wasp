@@ -80,9 +80,9 @@ func createServiceAccount(namespace string) *corev1.ServiceAccount {
 func createDaemonSet(args *FactoryArgs) []client.Object {
 	return []client.Object{
 		createWaspDaemonSet(args.NamespacedArgs.Namespace,
-			args.NamespacedArgs.MaxAverageSwapInPerSecond,
+			args.NamespacedArgs.MaxAverageSwapInPagesPerSecond,
 			args.NamespacedArgs.MemoryAvailableThreshold,
-			args.NamespacedArgs.MaxAverageSwapOutPerSecond,
+			args.NamespacedArgs.MaxAverageSwapOutPagesPerSecond,
 			args.NamespacedArgs.MinTimeInterval,
 			args.NamespacedArgs.Verbosity,
 			args.Image,
@@ -97,15 +97,15 @@ func createDaemonSetEnvVar(maxAverageSwapInPerSecond, memoryMaxThreshold, maxAve
 			Value: memoryMaxThreshold,
 		},
 		{
-			Name:  "MAX_AVERAGE_SWAP_IN_PER_SECOND",
+			Name:  "MAX_AVERAGE_SWAP_IN_PAGES_PER_SECOND",
 			Value: maxAverageSwapInPerSecond,
 		},
 		{
-			Name:  "MAX_AVERAGE_SWAP_OUT_PER_SECOND",
+			Name:  "MAX_AVERAGE_SWAP_OUT_PAGES_PER_SECOND",
 			Value: maxAverageSwapOutPerSecond,
 		},
 		{
-			Name:  "MIN_TIME_INTERVAL",
+			Name:  "AVERAGE_WINDOW_SIZE_SECONDS",
 			Value: minTimeInterval,
 		},
 		{
@@ -127,7 +127,7 @@ func createDaemonSetEnvVar(maxAverageSwapInPerSecond, memoryMaxThreshold, maxAve
 	}
 }
 
-func createWaspDaemonSet(namespace, maxAverageSwapInPerSecond, memoryMaxThreshold, maxAverageSwapOutPerSecond, minTimeInterval, verbosity, waspImage, pullPolicy string) *appsv1.DaemonSet {
+func createWaspDaemonSet(namespace, maxAverageSwapInPagesPerSecond, memoryMaxThreshold, maxAverageSwapOutPagesPerSecond, minTimeInterval, verbosity, waspImage, pullPolicy string) *appsv1.DaemonSet {
 	container := corev1.Container{
 		Name:            "wasp-agent",
 		Image:           waspImage,
@@ -148,7 +148,7 @@ func createWaspDaemonSet(namespace, maxAverageSwapInPerSecond, memoryMaxThreshol
 			},
 		},
 	}
-	container.Env = createDaemonSetEnvVar(maxAverageSwapInPerSecond, memoryMaxThreshold, maxAverageSwapOutPerSecond, minTimeInterval, verbosity)
+	container.Env = createDaemonSetEnvVar(maxAverageSwapInPagesPerSecond, memoryMaxThreshold, maxAverageSwapOutPagesPerSecond, minTimeInterval, verbosity)
 
 	labels := resources.WithLabels(map[string]string{"name": "wasp"}, utils2.DaemonSetLabels)
 	ds := &appsv1.DaemonSet{

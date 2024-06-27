@@ -110,11 +110,11 @@ spec:
       - env:
         - name: MEMORY_AVAILABLE_THRESHOLD
           value: 50Mi
-        - name: MAX_AVERAGE_SWAP_IN_PER_SECOND
+        - name: MAX_AVERAGE_SWAP_IN_PAGES_PER_SECOND
           value: "16"
-        - name: MAX_AVERAGE_SWAP_OUT_PER_SECOND
+        - name: MAX_AVERAGE_SWAP_OUT_PAGES_PER_SECOND
           value: "100"
-        - name: MIN_TIME_INTERVAL
+        - name: AVERAGE_WINDOW_SIZE_SECONDS
           value: "30"
         - name: VERBOSITY
           value: "3"

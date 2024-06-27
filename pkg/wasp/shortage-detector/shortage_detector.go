@@ -13,20 +13,20 @@ type ShortageDetector interface {
 }
 
 type ShortageDetectorImpl struct {
-	sc                         stats_collector.StatsCollector
-	maxAverageSwapInPerSecond  float32
-	maxAverageSwapOutPerSecond float32
-	minAvailableMemoryBytes    int64
-	minTimeInterval            time.Duration
+	sc                              stats_collector.StatsCollector
+	maxAverageSwapInPagesPerSecond  float32
+	maxAverageSwapOutPagesPerSecond float32
+	minAvailableMemoryBytes         int64
+	AverageWindowSizeSeconds        time.Duration
 }
 
-func NewShortageDetectorImpl(sc stats_collector.StatsCollector, maxAverageSwapInPerSecond, maxAverageSwapOutPerSecond float32, minAvailableMemoryBytes int64, minTimeInterval time.Duration) *ShortageDetectorImpl {
+func NewShortageDetectorImpl(sc stats_collector.StatsCollector, maxAverageSwapInPagesPerSecond, maxAverageSwapOutPagesPerSecond float32, minAvailableMemoryBytes int64, AverageWindowSizeSeconds time.Duration) *ShortageDetectorImpl {
 	return &ShortageDetectorImpl{
-		sc:                         sc,
-		maxAverageSwapInPerSecond:  maxAverageSwapInPerSecond,
-		maxAverageSwapOutPerSecond: maxAverageSwapOutPerSecond,
-		minAvailableMemoryBytes:    minAvailableMemoryBytes,
-		minTimeInterval:            minTimeInterval,
+		sc:                              sc,
+		maxAverageSwapInPagesPerSecond:  maxAverageSwapInPagesPerSecond,
+		maxAverageSwapOutPagesPerSecond: maxAverageSwapOutPagesPerSecond,
+		minAvailableMemoryBytes:         minAvailableMemoryBytes,
+		AverageWindowSizeSeconds:        AverageWindowSizeSeconds,
 	}
 }
 
@@ -37,18 +37,18 @@ func (sdi *ShortageDetectorImpl) ShouldEvict() bool {
 		return false
 	}
 
-	// Find the second newest Stats object after the first one with at least minTimeInterval difference
+	// Find the second newest Stats object after the first one with at least AverageWindowSizeSeconds difference
 	firstStat := stats[0]
 	var secondNewest *stats_collector.Stats
 	for i := 1; i < len(stats); i++ {
-		if firstStat.Time.Sub(stats[i].Time) >= sdi.minTimeInterval {
+		if firstStat.Time.Sub(stats[i].Time) >= sdi.AverageWindowSizeSeconds {
 			secondNewest = &stats[i]
 			break
 		}
 	}
 
 	if secondNewest == nil {
-		log.Log.Infof("could not find second newest Stats with at least %v difference", sdi.minTimeInterval)
+		log.Log.Infof("could not find second newest Stats with at least %v difference", sdi.AverageWindowSizeSeconds)
 		return false
 	}
 
@@ -59,10 +59,10 @@ func (sdi *ShortageDetectorImpl) ShouldEvict() bool {
 	averageSwapInPerSecond := float32(firstStat.SwapIn-secondNewest.SwapIn) / timeDiffSeconds
 	averageSwapOutPerSecond := float32(firstStat.SwapOut-secondNewest.SwapOut) / timeDiffSeconds
 
-	log.Log.Infof(fmt.Sprintf("Debug: averageSwapInPerSecond: %v , averageSwapInPerSecond:%v  AvailableMemoryBytes:%v", averageSwapInPerSecond, averageSwapInPerSecond, firstStat.AvailableMemoryBytes))
+	log.Log.Infof(fmt.Sprintf("Debug: averageSwapInPerSecond: %v , averageSwapOutPerSecond:%v  AvailableMemoryBytes:%v", averageSwapInPerSecond, averageSwapOutPerSecond, firstStat.AvailableMemoryBytes))
 
 	// Check conditions
-	if averageSwapInPerSecond > sdi.maxAverageSwapInPerSecond && averageSwapOutPerSecond > sdi.maxAverageSwapOutPerSecond &&
+	if averageSwapInPerSecond > sdi.maxAverageSwapInPagesPerSecond && averageSwapOutPerSecond > sdi.maxAverageSwapOutPagesPerSecond &&
 		firstStat.AvailableMemoryBytes < uint64(sdi.minAvailableMemoryBytes) {
 		return true
 	}

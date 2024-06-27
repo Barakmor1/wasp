@@ -9,26 +9,23 @@ source "${KUBEVIRTCI_PATH}/cluster/ephemeral-provider-common.sh"
 #if UNLIMITEDSWAP is set to true - Kubernetes workloads can use as much swap memory as they request, up to the system limit.
 #otherwise Kubernetes workloads can use as much swap memory as they request, up to the system limit by default
 function configure_swap_memory () {
-    if [ "$KUBEVIRT_SWAP_ON" == "true" ] ;then
-      for nodeNum in $(seq -f "%02g" 1 $KUBEVIRT_NUM_NODES); do
-          if [ ! -z $KUBEVIRT_SWAP_SIZE_IN_GB  ]; then
-            $ssh node${nodeNum} -- sudo dd if=/dev/zero of=/swapfile count=$KUBEVIRT_SWAP_SIZE_IN_GB bs=1G
-            $ssh node${nodeNum} -- sudo mkswap /swapfile
-          fi
+    for nodeNum in $(seq -f "%02g" 1 $KUBEVIRT_NUM_NODES); do
+        if [ ! -z $KUBEVIRT_SWAP_SIZE_IN_GB  ]; then
+          $ssh node${nodeNum} -- sudo dd if=/dev/zero of=/swapfile count=$KUBEVIRT_SWAP_SIZE_IN_GB bs=1G
+          $ssh node${nodeNum} -- sudo mkswap /swapfile
+        fi
 
-          $ssh node${nodeNum} -- sudo swapon -a
+        $ssh node${nodeNum} -- sudo swapon -a
 
-          if [ ! -z $KUBEVIRT_SWAPPINESS ]; then
-            $ssh node${nodeNum} -- "sudo /bin/su -c \"echo vm.swappiness = $KUBEVIRT_SWAPPINESS >> /etc/sysctl.conf\""
-            $ssh node${nodeNum} -- sudo sysctl vm.swappiness=$KUBEVIRT_SWAPPINESS
-          fi
+        if [ ! -z $KUBEVIRT_SWAPPINESS ]; then
+          $ssh node${nodeNum} -- "sudo /bin/su -c \"echo vm.swappiness = $KUBEVIRT_SWAPPINESS >> /etc/sysctl.conf\""
+          $ssh node${nodeNum} -- sudo sysctl vm.swappiness=$KUBEVIRT_SWAPPINESS
+        fi
 
-          if [ $KUBEVIRT_LIMITEDSWAP == "true" ]; then
-            $ssh node${nodeNum} -- "sudo sed -i ':a;N;\$!ba;s/memorySwap: {}/memorySwap:\n  swapBehavior: LimitedSwap/g'  /var/lib/kubelet/config.yaml"
-            $ssh node${nodeNum} -- sudo systemctl restart kubelet
-          fi
-      done
-    fi
+        $ssh node${nodeNum} -- "sudo sed -i '/^evictionHard:/,/^$/ {N; s/\n  .*//g}; \$a evictionHard:\n  memory.available: \"0%\"\n  nodefs.available: \"10%\"\n  nodefs.inodesFree: \"5%\"\n  imagefs.available: \"15%\"\n  imagefs.inodesFree: \"5%\"' /var/lib/kubelet/config.yaml"
+        $ssh node${nodeNum} -- "sudo sed -i ':a;N;\$!ba;s/memorySwap: {}/memorySwap:\n  swapBehavior: LimitedSwap/g'  /var/lib/kubelet/config.yaml"
+        $ssh node${nodeNum} -- sudo systemctl restart kubelet
+    done
 }
 
 function configure_ksm_module () {
