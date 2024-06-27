@@ -19,5 +19,3 @@ spec:
     #todo: memorySwap and the featureGates should be deleted once swap configuration is included in this project
     memorySwap:
       swapBehavior: LimitedSwap
-    featureGates:
-      NodeSwap: true

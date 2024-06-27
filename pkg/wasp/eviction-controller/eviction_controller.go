@@ -87,25 +87,6 @@ func (ctrl *EvictionController) gatherStatistics() (*v1.Node, error) {
 }
 
 func (ctrl *EvictionController) handleMemorySwapEviction() {
-
-	//debug
-
-	log.Log.Infof(fmt.Sprintf("In handleMemorySwapEviction last 10 stats:"))
-	statsList := ctrl.statsCollector.GetStatsList()
-	limit := 10
-	if len(statsList) < 10 {
-		limit = len(statsList)
-	}
-	for i := 0; i < limit; i++ {
-		fmt.Printf("Stats %d: %+v\n", i+1, statsList[i])
-	}
-
-	if true {
-		return
-	}
-
-	//end debug.
-
 	shouldEvict := ctrl.shortageDetector.ShouldEvict()
 	node, err := ctrl.getNode()
 	if err != nil {

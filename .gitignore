@@ -6,3 +6,4 @@ bin/
 _out/*
 .coverprofile
 kubeconfig
+oc

@@ -1,6 +1,7 @@
 package shortage_detector
 
 import (
+	"fmt"
 	"kubevirt.io/wasp/pkg/log"
 	stats_collector "kubevirt.io/wasp/pkg/wasp/stats-collector"
 	"time"
@@ -57,6 +58,8 @@ func (sdi *ShortageDetectorImpl) ShouldEvict() bool {
 	// Calculate rates
 	averageSwapInPerSecond := float32(firstStat.SwapIn-secondNewest.SwapIn) / timeDiffSeconds
 	averageSwapOutPerSecond := float32(firstStat.SwapOut-secondNewest.SwapOut) / timeDiffSeconds
+
+	log.Log.Infof(fmt.Sprintf("Debug: averageSwapInPerSecond: %v , averageSwapInPerSecond:%v  AvailableMemoryBytes:%v", averageSwapInPerSecond, averageSwapInPerSecond, firstStat.AvailableMemoryBytes))
 
 	// Check conditions
 	if averageSwapInPerSecond > sdi.maxAverageSwapInPerSecond && averageSwapOutPerSecond > sdi.maxAverageSwapOutPerSecond &&
