@@ -128,6 +128,7 @@ func (waspapp *WaspApp) initEvictionController(stop <-chan struct{}) {
 		waspapp.maxAverageSwapOutPagesPerSecond,
 		waspapp.minAvailableMemoryBytes,
 		waspapp.AverageWindowSizeSeconds,
+		waspapp.waspNs,
 		stop,
 	)
 }

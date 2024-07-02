@@ -58,14 +58,12 @@ func (sdi *ShortageDetectorImpl) ShouldEvict() bool {
 	// Calculate rates
 	averageSwapInPerSecond := float32(firstStat.SwapIn-secondNewest.SwapIn) / timeDiffSeconds
 	averageSwapOutPerSecond := float32(firstStat.SwapOut-secondNewest.SwapOut) / timeDiffSeconds
+	log.Log.Infof(fmt.Sprintf("Debug: ______________________________________________________________________________________________________________"))
+	log.Log.Infof(fmt.Sprintf("Debug: averageSwapInPerSecond: %v condition: %v", averageSwapInPerSecond, averageSwapInPerSecond > sdi.maxAverageSwapInPagesPerSecond))
+	log.Log.Infof(fmt.Sprintf("Debug: averageSwapOutPerSecond:%v condition: %v", averageSwapOutPerSecond, averageSwapOutPerSecond > sdi.maxAverageSwapOutPagesPerSecond))
+	log.Log.Infof(fmt.Sprintf("Debug: AvailableMemoryBytes:%v condition: %v", firstStat.AvailableMemoryBytes, firstStat.AvailableMemoryBytes < uint64(sdi.minAvailableMemoryBytes)))
+	log.Log.Infof(fmt.Sprintf("Debug: all conditions: %v", averageSwapInPerSecond > sdi.maxAverageSwapInPagesPerSecond && averageSwapOutPerSecond > sdi.maxAverageSwapOutPagesPerSecond && firstStat.AvailableMemoryBytes < uint64(sdi.minAvailableMemoryBytes)))
 
-	log.Log.Infof(fmt.Sprintf("Debug: averageSwapInPerSecond: %v , averageSwapOutPerSecond:%v  AvailableMemoryBytes:%v", averageSwapInPerSecond, averageSwapOutPerSecond, firstStat.AvailableMemoryBytes))
-
-	// Check conditions
-	if averageSwapInPerSecond > sdi.maxAverageSwapInPagesPerSecond && averageSwapOutPerSecond > sdi.maxAverageSwapOutPagesPerSecond &&
-		firstStat.AvailableMemoryBytes < uint64(sdi.minAvailableMemoryBytes) {
-		return true
-	}
-
-	return false
+	return averageSwapInPerSecond > sdi.maxAverageSwapInPagesPerSecond && averageSwapOutPerSecond > sdi.maxAverageSwapOutPagesPerSecond &&
+		firstStat.AvailableMemoryBytes < uint64(sdi.minAvailableMemoryBytes)
 }

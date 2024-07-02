@@ -161,10 +161,10 @@ func getOperatorResources(resourceGroup string) ([]client.Object, error) {
 			PullPolicy:             *pullPolicy,
 			Namespace:              *namespace,
 			//todo: get this as a flag
-			MaxAverageSwapInPagesPerSecond:  "16",
-			MaxAverageSwapOutPagesPerSecond: "100",
+			MaxAverageSwapInPagesPerSecond:  "1000000",
+			MaxAverageSwapOutPagesPerSecond: "1000000",
 			MinTimeInterval:                 "30",
-			MemoryAvailableThreshold:        "50Mi",
+			MemoryAvailableThreshold:        "150Mi",
 		},
 		Image: *operatorImage,
 	}

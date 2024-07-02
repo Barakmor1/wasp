@@ -13,10 +13,10 @@ import (
 	"k8s.io/apimachinery/pkg/util/wait"
 	v1lister "k8s.io/client-go/listers/core/v1"
 	"k8s.io/client-go/tools/cache"
-	kubetypes "k8s.io/kubernetes/pkg/kubelet/types"
 	"kubevirt.io/wasp/pkg/client"
 	"kubevirt.io/wasp/pkg/log"
 	pod_evictor "kubevirt.io/wasp/pkg/wasp/pod-evictor"
+	pod_filter "kubevirt.io/wasp/pkg/wasp/pod-filter"
 	pod_ranker "kubevirt.io/wasp/pkg/wasp/pod-ranker"
 	shortage_detector "kubevirt.io/wasp/pkg/wasp/shortage-detector"
 	stats_collector "kubevirt.io/wasp/pkg/wasp/stats-collector"
@@ -32,6 +32,7 @@ type EvictionController struct {
 	statsCollector   stats_collector.StatsCollector
 	shortageDetector shortage_detector.ShortageDetector
 	podRanker        pod_ranker.PodRanker
+	podFilter        pod_filter.PodFilter
 	podEvictor       pod_evictor.PodEvictor
 	nodeName         string
 	waspCli          client.WaspClient
@@ -50,6 +51,7 @@ func NewEvictionController(waspCli client.WaspClient,
 	maxAverageSwapOutPagesPerSecond float32,
 	minAvailableMemory resource.Quantity,
 	AverageWindowSizeSeconds time.Duration,
+	waspNs string,
 	stop <-chan struct{}) *EvictionController {
 	sc := stats_collector.NewStatsCollectorImpl()
 	ctrl := &EvictionController{
@@ -59,6 +61,7 @@ func NewEvictionController(waspCli client.WaspClient,
 		waspCli:          waspCli,
 		podEvictor:       pod_evictor.NewPodEvictorImpl(waspCli),
 		podRanker:        pod_ranker.NewPodRankerImpl(),
+		podFilter:        pod_filter.NewPodFilterImpl(waspNs),
 		resyncPeriod:     metav1.Duration{Duration: 5 * time.Second}.Duration,
 		podInformer:      podInformer,
 		nodeInformer:     nodeInformer,
@@ -100,13 +103,11 @@ func (ctrl *EvictionController) handleMemorySwapEviction() {
 		err := removeWaspEvictionTaint(ctrl.waspCli, node)
 		if err != nil {
 			log.Log.Infof(err.Error())
-			return
 		}
 	case !evicting && shouldEvict:
 		err := addWaspEvictionTaint(ctrl.waspCli, node)
 		if err != nil {
 			log.Log.Infof(err.Error())
-			return
 		}
 	}
 	if !shouldEvict {
@@ -118,14 +119,17 @@ func (ctrl *EvictionController) handleMemorySwapEviction() {
 		return
 	}
 
-	rankedPods := ctrl.podRanker.RankPods(pods)
+	rankedFilteredPods := ctrl.podRanker.RankPods(ctrl.podFilter.FilterPods(pods))
 
-	if len(rankedPods) == 0 {
+	if len(rankedFilteredPods) == 0 {
 		log.Log.Infof("Wasp evictor doesn't have any pod to evict")
 		return
 	}
-
-	err = ctrl.podEvictor.EvictPod(rankedPods[0])
+	for _, p := range rankedFilteredPods {
+		log.Log.Infof("potenial pod: %v in ns: %v in node: %v", p.Name, p.Namespace, p.Spec.NodeName)
+	}
+	log.Log.Infof("will evict pod: %v  ns: %v", rankedFilteredPods[0].Name, rankedFilteredPods[0].Namespace)
+	err = ctrl.podEvictor.EvictPod(&rankedFilteredPods[0])
 	if err != nil {
 		log.Log.Infof(err.Error())
 	}
@@ -203,7 +207,7 @@ func waitForSyncedStore(timeout <-chan time.Time, informerSynced func() bool) bo
 	return true
 }
 
-func (ctrl *EvictionController) listRunningPodsOnNode() ([]*v1.Pod, error) {
+func (ctrl *EvictionController) listRunningPodsOnNode() ([]v1.Pod, error) {
 	handlerNodeSelector := fields.ParseSelectorOrDie("spec.nodeName=" + ctrl.nodeName)
 	list, err := ctrl.waspCli.CoreV1().Pods(v1.NamespaceAll).List(context.Background(), metav1.ListOptions{
 		FieldSelector: handlerNodeSelector.String(),
@@ -211,17 +215,12 @@ func (ctrl *EvictionController) listRunningPodsOnNode() ([]*v1.Pod, error) {
 	if err != nil {
 		return nil, err
 	}
-	var pods []*v1.Pod
+	var pods []v1.Pod
 
 	for i := range list.Items {
-		pod := &list.Items[i]
-		if kubetypes.IsStaticPod(pod) {
-			continue
-		}
+		pod := list.Items[i]
 
-		// Some pods get stuck in a pending Termination during shutdown
-		// due to virt-handler not being available to unmount container disk
-		// mount propagation. A pod with all containers terminated is not
+		//  A pod with all containers terminated is not
 		// considered alive
 		allContainersTerminated := false
 		if len(pod.Status.ContainerStatuses) > 0 {

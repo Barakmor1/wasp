@@ -15,6 +15,7 @@ rules:
   - watch
   - list
   - update
+  - patch
 - apiGroups:
   - ""
   resources:
@@ -109,11 +110,11 @@ spec:
       containers:
       - env:
         - name: MEMORY_AVAILABLE_THRESHOLD
-          value: 50Mi
+          value: 150Mi
         - name: MAX_AVERAGE_SWAP_IN_PAGES_PER_SECOND
-          value: "16"
+          value: "1000000"
         - name: MAX_AVERAGE_SWAP_OUT_PAGES_PER_SECOND
-          value: "100"
+          value: "1000000"
         - name: AVERAGE_WINDOW_SIZE_SECONDS
           value: "30"
         - name: VERBOSITY
